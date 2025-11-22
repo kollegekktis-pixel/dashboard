@@ -1,8 +1,6 @@
 fastapi
 uvicorn
+sqlalchemy
 jinja2
 python-multipart
-sqlalchemy
-passlib[bcrypt]
-python-dotenv
-starlette
+itsdangerous
