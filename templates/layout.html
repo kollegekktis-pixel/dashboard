@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}UstazSapa{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="topbar">
+    <div class="logo">UstazSapa</div>
+
+    {% if user and user.username %}
+    <!-- USER MENU -->
+    <div class="user-menu">
+        <div class="user-info" onclick="toggleMenu()">
+            <div class="avatar">{{ user.full_name[0] if user.full_name else user.username[0] }}</div>
+            <span class="username">{{ user.full_name or user.username }}</span>
+        </div>
+
+        <div id="menuDropdown" class="dropdown">
+            <a href="/dashboard">Панель</a>
+            <a href="/logout">Выйти</a>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- LOGIN BUTTON -->
+    <a href="/login" class="login-btn">Войти</a>
+    {% endif %}
+</header>
+
+
+<main>
+    {% block content %}{% endblock %}
+</main>
+
+<script>
+function toggleMenu() {
+    const menu = document.getElementById("menuDropdown");
+    menu.style.display = (menu.style.display === "block") ? "none" : "block";
+}
+
+document.addEventListener('click', function(e){
+    const menu = document.getElementById("menuDropdown");
+    const userMenu = document.querySelector(".user-info");
+    if (menu && userMenu && !userMenu.contains(e.target)) {
+        menu.style.display = "none";
+    }
+});
+</script>
+
+</body>
+</html>

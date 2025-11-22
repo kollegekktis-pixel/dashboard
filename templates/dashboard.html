@@ -1,0 +1,129 @@
+{% extends "layout.html" %}
+{% block title %}Панель{% endblock %}
+{% block content %}
+
+<div class="tabs card">
+  {% set tabs = ['profile','add','my'] %}
+  {% if user.role == 'admin' %} {% set tabs = tabs + ['admin','reports'] %} {% endif %}
+  {% for tab in tabs %}
+    <div class="tab" onclick="showTab('{{ tab }}')">
+      {% if tab == 'profile' %}Профиль{% elif tab == 'add' %}Добавить достижение{% elif tab == 'my' %}Мои достижения{% elif tab == 'admin' %}Панель методиста{% elif tab == 'reports' %}Отчёты{% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+<div id="content-area">
+  <div id="profile" class="card">
+    <h3>Профиль</h3>
+    <div><strong>ФИО:</strong> {{ user.full_name or user.username }}</div>
+    <div><strong>Школа:</strong> {{ user.school or '—' }}</div>
+    <div><strong>Предмет:</strong> {{ user.subject or '—' }}</div>
+  </div>
+
+  <div id="add" class="card" style="display:none">
+    <h3>Добавить достижение</h3>
+    <form id="frmAdd" enctype="multipart/form-data">
+      {% for field,label in [('title','Название'),('level','Уровень'),('ach_date','Дата'),('file','Файл (по желанию)')] %}
+        <div class="form-row">
+          <label>{{ label }}</label><br>
+          {% if field == 'level' %}
+            <select name="level" id="level">
+              <option value="school">Школьный</option>
+              <option value="city">Городской</option>
+              <option value="region">Областной</option>
+              <option value="republic">Республиканский</option>
+            </select>
+          {% elif field == 'file' %}
+            <input type="file" id="file" name="file"/>
+          {% elif field == 'ach_date' %}
+            <input type="date" id="ach_date" name="date_val" required/>
+          {% else %}
+            <input name="title" id="title" required style="padding:8px;width:100%"/>
+          {% endif %}
+        </div>
+      {% endfor %}
+      <div><button type="button" class="btn" onclick="submitAchievement()">Отправить</button></div>
+      <div id="add-res" style="margin-top:8px"></div>
+    </form>
+  </div>
+
+  <div id="my" class="card" style="display:none"><h3>Мои достижения</h3><div id="my-list">Загрузка...</div></div>
+
+  {% if user.role == 'admin' %}
+    <div id="admin" class="card" style="display:none"><h3>Подтверждение достижений</h3><div id="admin-list">Загрузка...</div></div>
+    <div id="reports" class="card" style="display:none"><h3>Рейтинг</h3><div id="rating-area">Загрузка...</div></div>
+  {% endif %}
+</div>
+
+<script>
+const showTab = name => {
+  document.querySelectorAll('#content-area > div').forEach(d=>d.style.display='none');
+  const el = document.getElementById(name); if(el) el.style.display='block';
+  if(name==='my') loadMy();
+  if(name==='admin') loadAdmin();
+  if(name==='reports') loadRating();
+};
+
+const apiGet = async url => {
+  const resp = await fetch(url);
+  if(resp.status===401){ location.href='/login'; return null; }
+  const ct = resp.headers.get('content-type')||''; 
+  if(!resp.ok && ct.includes('application/json')) try{ return await resp.json(); }catch(e){return null;}
+  if(ct.includes('application/json')) try{ return await resp.json(); }catch(e){return null;}
+  return null;
+};
+
+const renderAchievements = (data,id,isAdmin=false) => {
+  const html = data.map(a => `
+    <div style="padding:8px;border:1px solid #eee;margin-bottom:8px;border-radius:8px;${isAdmin?'display:flex;justify-content:space-between':''}">
+      <div>
+        <div style="font-weight:600">${a.title}</div>
+        <div class="muted">${isAdmin?a.teacher+' — ':''}${a.date} — ${a.level_label} — ${a.points} балл(ов)</div>
+        <div class="muted">Статус: ${a.status}</div>
+      </div>
+      ${isAdmin?`<div style="display:flex;flex-direction:column;gap:6px">
+        ${a.filename?`<a class="btn-ghost" href="/file/${a.filename}" target="_blank">Открыть</a>`:''}
+        <button class="btn" onclick="confirmAchievement(${a.id})">Подтвердить</button>
+        <button class="btn-ghost" onclick="rejectAchievement(${a.id})">Отклонить</button>
+      </div>`:''}
+      ${!isAdmin&&a.filename?`<div style="margin-top:6px"><a href="/file/${a.filename}" target="_blank">Открыть файл</a></div>`:''}
+    </div>
+  `).join('');
+  document.getElementById(id).innerHTML = html || '<div class="muted">'+(isAdmin?'Нет заявок':'Нет достижений')+'</div>';
+};
+
+const loadMy = async()=>{ const data=await apiGet('/api/achievements'); if(data) renderAchievements(data,'my-list'); };
+const loadAdmin = async()=>{ const data=await apiGet('/api/achievements'); if(data) renderAchievements(data,'admin-list',true); };
+const loadRating = async()=>{
+  const data=await apiGet('/api/rating'); if(!data) return;
+  let html='<h4>ТОП учителей</h4><table><thead><tr><th>Учитель</th><th>Школа</th><th>Баллы</th></tr></thead><tbody>';
+  data.teachers.forEach(t=>{ html+=`<tr><td>${t.name}</td><td>${t.school}</td><td>${t.score}</td></tr>`; });
+  html+='</tbody></table><h4 style="margin-top:12px">Рейтинг школ (средний балл)</h4><table><thead><tr><th>Школа</th><th>Средний балл</th><th>Всего</th></tr></thead><tbody>';
+  data.schools.forEach(s=>{ html+=`<tr><td>${s.school}</td><td>${s.avg}</td><td>${s.total}</td></tr>`; });
+  html+='</tbody></table>'; document.getElementById('rating-area').innerHTML=html;
+};
+
+const submitAchievement = async ()=>{
+  const title=document.getElementById('title').value.trim();
+  const level=document.getElementById('level').value;
+  const dateVal=document.getElementById('ach_date').value;
+  const file=document.getElementById('file').files[0];
+  if(!title||!dateVal){ alert('Введите название и дату'); return; }
+  if(file){ const max=5*1024*1024,allowed=['application/pdf','image/png','image/jpeg','image/jpg']; 
+    if(file.size>max){ document.getElementById('add-res').innerHTML='<div style="color:red">Файл слишком большой (макс 5 МБ)</div>'; return; }
+    if(!allowed.includes(file.type)){ document.getElementById('add-res').innerHTML='<div style="color:red">Недопустимый тип файла. Допустимы: PDF, PNG, JPG</div>'; return; }
+  }
+  const form=new FormData(); form.append('title',title); form.append('level',level); form.append('date_val',dateVal); if(file) form.append('file',file);
+  const csrfMeta=document.querySelector('meta[name="csrf-token"]'); const headers={}; if(csrfMeta) headers['X-CSRFToken']=csrfMeta.getAttribute('content');
+  const resp=await fetch('/api/achievements',{method:'POST',body:form,headers});
+  if(resp.ok){ document.getElementById('add-res').innerHTML='<div style="color:green">Отправлено на подтверждение</div>'; document.getElementById('frmAdd').reset(); }
+  else{ let msg='Ошибка'; try{ const j=await resp.json(); if(j&&j.error) msg=j.error; }catch(e){} document.getElementById('add-res').innerHTML=`<div style="color:red">${msg}</div>`; }
+};
+
+const confirmAchievement=async id=>{ const csrfMeta=document.querySelector('meta[name="csrf-token"]'); const headers={}; if(csrfMeta) headers['X-CSRFToken']=csrfMeta.getAttribute('content'); const resp=await fetch('/api/achievements/'+id+'/confirm',{method:'POST',headers}); if(!resp.ok){alert('Не удалось подтвердить.');} loadAdmin(); };
+const rejectAchievement=async id=>{ const csrfMeta=document.querySelector('meta[name="csrf-token"]'); const headers={}; if(csrfMeta) headers['X-CSRFToken']=csrfMeta.getAttribute('content'); const resp=await fetch('/api/achievements/'+id+'/reject',{method:'POST',headers}); if(!resp.ok){alert('Не удалось отклонить.');} loadAdmin(); };
+
+showTab('profile');
+</script>
+
+{% endblock %}
