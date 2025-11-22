@@ -6,3 +6,4 @@ sqlalchemy
 passlib[bcrypt]
 python-dotenv
 itsdangerous
+bcrypt>=4.0.0
