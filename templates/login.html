@@ -179,7 +179,7 @@
     <div class="login-card">
         <div class="login-header">
             <h2>UstasSapa Lab</h2>
-            <p>Рейтинговая система оценки достижений учителя</p>
+            <p>Войдите в систему</p>
         </div>
 
         {% if error %}
@@ -223,7 +223,12 @@
         </form>
 
         <div class="login-footer">
-            <p>© 2025 Mambetov Sanat. Все права защищены.</p>
+            {% if allow_registration %}
+            <p style="margin-bottom: 0.75rem;">
+                Нет аккаунта? <a href="/register" style="color: #7030A0; text-decoration: none; font-weight: 600;">Зарегистрироваться</a>
+            </p>
+            {% endif %}
+            <p>© 2024 UstasSapa Lab. Все права защищены.</p>
         </div>
     </div>
 </div>
