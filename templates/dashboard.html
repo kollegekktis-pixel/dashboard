@@ -54,7 +54,7 @@
 <div id="add-achievement" class="tab-content">
     <div class="card">
         <h2>{{ t('add_achievement') }}</h2>
-        <form method="post" action="/add-achievement">
+        <form method="post" action="/add-achievement" enctype="multipart/form-data">
             <div style="display: grid; gap: 1rem;">
                 <div>
                     <label>{{ t('title') }} *</label>
@@ -77,6 +77,28 @@
                             <option value="courses">{{ t('category_courses') }}</option>
                             <option value="other">{{ t('category_other') }}</option>
                         </select>
+                    </div>
+
+                    <div>
+                        <label>{{ t('level') }}</label>
+                        <select name="level">
+                            <option value="school">{{ t('level_school') }}</option>
+                            <option value="city">{{ t('level_city') }}</option>
+                            <option value="regional">{{ t('level_regional') }}</option>
+                            <option value="national">{{ t('level_national') }}</option>
+                            <option value="international">{{ t('level_international') }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+                    <div>
+                        <label>{{ t('file') }}</label>
+                        <input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" 
+                               style="padding: 0.5rem;">
+                        <div style="font-size: 0.85rem; color: #666; margin-top: 0.25rem;">
+                            📎 PDF, JPG, PNG, DOC, DOCX (макс. 5 МБ)
+                        </div>
                     </div>
 
                     <div>
