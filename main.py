@@ -301,21 +301,28 @@ def get_language(language: Optional[str] = Cookie(None)) -> str:
 @app.on_event("startup")
 def create_admin():
     db = SessionLocal()
-    admin = db.query(User).filter(User.username == "admin").first()
-    if not admin:
-        admin_pass = os.getenv("ADMIN_PASS", "adminpass123")
-        hashed_pw = hash_password(admin_pass)
-        new_admin = User(
-            username="admin",
-            password_hash=hashed_pw,
-            full_name="Administrator",
-            is_admin=True,
-            school="System"
-        )
-        db.add(new_admin)
-        db.commit()
-        print("✅ Created admin user: admin")
-    db.close()
+    try:
+        admin = db.query(User).filter(User.username == "admin").first()
+        if not admin:
+            admin_pass = os.getenv("ADMIN_PASS", "adminpass123")
+            hashed_pw = hash_password(admin_pass)
+            new_admin = User(
+                username="admin",
+                password_hash=hashed_pw,
+                full_name="Administrator",
+                is_admin=True,
+                school="System"
+            )
+            db.add(new_admin)
+            db.commit()
+            print("✅ Created admin user: admin")
+        else:
+            print("ℹ️ Admin user already exists")
+    except Exception as e:
+        print(f"⚠️ Error creating admin: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 
 # ===========================
