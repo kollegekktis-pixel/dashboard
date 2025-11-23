@@ -12,17 +12,24 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from sqlalchemy import create_engine, Column, Integer, String, Date, ForeignKey
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Session as DBSession
-import bcrypt  # ИЗМЕНЕНО: используем нативный bcrypt вместо passlib
+import bcrypt
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # Config
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123")
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./db.sqlite3")
+# Поддержка и PostgreSQL и SQLite
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+if not DATABASE_URL:
+    DATABASE_URL = "sqlite:///./db.sqlite3"
+
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads"))
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "12345")
+ALLOW_REGISTRATION = os.getenv("ALLOW_REGISTRATION", "true").lower() == "true"
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -37,7 +44,11 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 # DB
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {})
+engine = create_engine(
+    DATABASE_URL, 
+    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    pool_pre_ping=True
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -58,12 +69,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    full_name = Column(String, nullable=True)
-    password_hash = Column(String)
-    role = Column(String, default="teacher")
-    school = Column(String, nullable=True)
-    subject = Column(String, nullable=True)
+    username = Column(String(100), unique=True, index=True)
+    full_name = Column(String(200), nullable=True)
+    password_hash = Column(String(200))
+    role = Column(String(50), default="teacher")
+    school = Column(String(200), nullable=True)
+    subject = Column(String(200), nullable=True)
     achievements = relationship("Achievement", back_populates="teacher")
 
     def check_password(self, plain: str) -> bool:
@@ -74,11 +85,11 @@ class Achievement(Base):
     __tablename__ = "achievements"
     id = Column(Integer, primary_key=True, index=True)
     teacher_id = Column(Integer, ForeignKey("users.id"))
-    title = Column(String)
-    level = Column(String)
+    title = Column(String(500))
+    level = Column(String(50))
     date = Column(Date)
-    filename = Column(String, nullable=True)
-    status = Column(String, default="pending")
+    filename = Column(String(200), nullable=True)
+    status = Column(String(50), default="pending")
     teacher = relationship("User", back_populates="achievements")
 
 Base.metadata.create_all(bind=engine)
@@ -144,15 +155,96 @@ def root(request: Request):
 @app.get("/login", response_class=HTMLResponse)
 def login_get(request: Request):
     dummy = type("U",(object,),{"full_name":"", "username":""})()
-    return templates.TemplateResponse("login.html", {"request": request, "user": dummy})
+    return templates.TemplateResponse("login.html", {
+        "request": request, 
+        "user": dummy,
+        "allow_registration": ALLOW_REGISTRATION
+    })
 
 @app.post("/login")
 def login_post(request: Request, username: str = Form(...), password: str = Form(...), db: DBSession = Depends(get_db)):
     user = get_user_by_username(db, username)
     if not user or not user.check_password(password):
         dummy = type("U",(object,),{"full_name":"", "username":""})()
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Неверный логин или пароль", "user": dummy})
+        return templates.TemplateResponse("login.html", {
+            "request": request, 
+            "error": "Неверный логин или пароль", 
+            "user": dummy,
+            "allow_registration": ALLOW_REGISTRATION
+        })
     request.session["user_id"] = user.id
+    return RedirectResponse(url="/dashboard", status_code=302)
+
+# РЕГИСТРАЦИЯ
+@app.get("/register", response_class=HTMLResponse)
+def register_get(request: Request):
+    if not ALLOW_REGISTRATION:
+        return RedirectResponse(url="/login", status_code=302)
+    dummy = type("U",(object,),{"full_name":"", "username":""})()
+    return templates.TemplateResponse("register.html", {"request": request, "user": dummy})
+
+@app.post("/register")
+def register_post(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    full_name: str = Form(""),
+    school: str = Form(""),
+    subject: str = Form(""),
+    db: DBSession = Depends(get_db)
+):
+    if not ALLOW_REGISTRATION:
+        return RedirectResponse(url="/login", status_code=302)
+    
+    dummy = type("U",(object,),{"full_name":"", "username":""})()
+    
+    # Валидация
+    if len(username) < 3:
+        return templates.TemplateResponse("register.html", {
+            "request": request, 
+            "error": "Логин должен быть не менее 3 символов",
+            "user": dummy
+        })
+    
+    if len(password) < 6:
+        return templates.TemplateResponse("register.html", {
+            "request": request, 
+            "error": "Пароль должен быть не менее 6 символов",
+            "user": dummy
+        })
+    
+    if password != password_confirm:
+        return templates.TemplateResponse("register.html", {
+            "request": request, 
+            "error": "Пароли не совпадают",
+            "user": dummy
+        })
+    
+    # Проверка существования
+    if get_user_by_username(db, username):
+        return templates.TemplateResponse("register.html", {
+            "request": request, 
+            "error": "Пользователь с таким логином уже существует",
+            "user": dummy
+        })
+    
+    # Создание пользователя
+    new_user = User(
+        username=username,
+        full_name=full_name,
+        password_hash=hash_password(password),
+        role="teacher",
+        school=school,
+        subject=subject
+    )
+    
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Автоматический вход
+    request.session["user_id"] = new_user.id
     return RedirectResponse(url="/dashboard", status_code=302)
 
 @app.get("/logout")
@@ -278,14 +370,12 @@ def create_user(
     db: DBSession = Depends(get_db),
     admin: User = Depends(require_admin)
 ):
-    # Проверка — существует ли пользователь
     if get_user_by_username(db, username):
         return templates.TemplateResponse(
             "dashboard.html",
-            {"request": request, "user": admin, "error": "Пользователь существует"}
+            {"request": request, "user": admin, "error": "Пользователь существует", "level_labels": LEVEL_LABELS}
         )
 
-    # Создаем пользователя
     u = User(
         username=username,
         full_name=full_name,
