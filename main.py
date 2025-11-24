@@ -149,6 +149,20 @@ TRANSLATIONS = {
         "cancel": "Отмена",
         "download": "Скачать",
         
+        # Типы достижений
+        "student_achievements": "Достижения ученика",
+        "teacher_achievements": "Достижения педагога",
+        "social_activity": "Общественно-социальная активность",
+        "educational_activity": "Воспитательная активность",
+        "student_name": "ФИО ученика",
+        "place": "Место",
+        
+        # Места
+        "place_1": "1 место",
+        "place_2": "2 место",
+        "place_3": "3 место",
+        "place_certificate": "Сертификат участника",
+        
         # Категории
         "category_publications": "Публикации",
         "category_conferences": "Конференции",
@@ -248,6 +262,20 @@ TRANSLATIONS = {
         "save": "Сақтау",
         "cancel": "Болдырмау",
         "download": "Жүктеп алу",
+        
+        # Жетістік түрлері
+        "student_achievements": "Оқушының жетістіктері",
+        "teacher_achievements": "Педагогтың жетістіктері",
+        "social_activity": "Қоғамдық-әлеуметтік белсенділік",
+        "educational_activity": "Тәрбиелік белсенділік",
+        "student_name": "Оқушының аты-жөні",
+        "place": "Орын",
+        
+        # Орындар
+        "place_1": "1 орын",
+        "place_2": "2 орын",
+        "place_3": "3 орын",
+        "place_certificate": "Қатысушы сертификаты",
         
         # Санаттар
         "category_publications": "Жарияланымдар",
