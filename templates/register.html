@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}{{ t('registration') }} - {{ t('app_title') }}{% endblock %}
+{% block title %}Регистрация - UstasSapa Lab{% endblock %}
 
 {% block content %}
 <style>
@@ -8,18 +8,17 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: calc(100vh - 200px);
-        padding: 2rem 0;
+        min-height: calc(100vh - 120px);
+        padding: 2rem 1rem;
     }
 
     .register-card {
         background: white;
-        border-radius: 20px;
+        border-radius: 24px;
         padding: 3rem;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-        border: 3px solid #FFFFFF;
-        max-width: 500px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
         width: 100%;
+        max-width: 500px;
         animation: fadeInUp 0.6s ease;
     }
 
@@ -40,24 +39,95 @@
     }
 
     .register-header h2 {
+        font-size: 1.75rem;
+        font-weight: 700;
         color: #7030A0;
-        font-size: 2rem;
         margin-bottom: 0.5rem;
     }
 
     .register-header p {
-        color: #666;
+        color: #718096;
         font-size: 0.95rem;
     }
 
-    .error-message {
-        background: #f8d7da;
-        color: #721c24;
+    .register-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .form-group label {
+        font-weight: 600;
+        color: #2d3748;
+        font-size: 0.9rem;
+    }
+
+    .form-group label .required {
+        color: #c53030;
+    }
+
+    .form-group label .optional {
+        color: #718096;
+        font-weight: 400;
+        font-size: 0.85rem;
+    }
+
+    .input-wrapper input {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        background: #f7fafc;
+    }
+
+    .input-wrapper input:focus {
+        outline: none;
+        border-color: #7030A0;
+        background: white;
+        box-shadow: 0 0 0 4px rgba(112, 48, 160, 0.1);
+    }
+
+    .register-btn {
         padding: 1rem;
-        border-radius: 8px;
-        margin-bottom: 1.5rem;
-        border: 1px solid #f5c6cb;
+        background: #7030A0;
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1.05rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(112, 48, 160, 0.4);
+        margin-top: 0.5rem;
+    }
+
+    .register-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(112, 48, 160, 0.6);
+    }
+
+    .register-btn:active {
+        transform: translateY(0);
+    }
+
+    .error-message {
+        background: #fed7d7;
+        color: #c53030;
+        padding: 1rem;
+        border-radius: 12px;
+        text-align: center;
+        font-size: 0.9rem;
+        font-weight: 500;
         animation: shake 0.5s ease;
+        margin-bottom: 1rem;
     }
 
     @keyframes shake {
@@ -66,61 +136,11 @@
         75% { transform: translateX(10px); }
     }
 
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        color: #333;
-        font-weight: 600;
-    }
-
-    .form-group input {
-        width: 100%;
-        padding: 0.9rem;
-        border: 2px solid #e0e0e0;
-        border-radius: 10px;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-    }
-
-    .form-group input:focus {
-        outline: none;
-        border-color: #7030A0;
-        box-shadow: 0 0 0 4px rgba(112, 48, 160, 0.1);
-    }
-
-    .form-helper {
-        font-size: 0.85rem;
-        color: #666;
-        margin-top: 0.25rem;
-    }
-
-    .register-btn {
-        width: 100%;
-        background: linear-gradient(135deg, #7030A0, #9b59d0);
-        color: white;
-        padding: 1rem;
-        border: none;
-        border-radius: 10px;
-        font-size: 1.1rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(112, 48, 160, 0.3);
-    }
-
-    .register-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 25px rgba(112, 48, 160, 0.4);
-    }
-
     .login-link {
-        text-align: center;
         margin-top: 1.5rem;
-        color: #666;
+        text-align: center;
+        color: #718096;
+        font-size: 0.9rem;
     }
 
     .login-link a {
@@ -133,14 +153,51 @@
         text-decoration: underline;
     }
 
-    @media (max-width: 480px) {
+    .password-hint {
+        font-size: 0.8rem;
+        color: #718096;
+        margin-top: 0.25rem;
+    }
+
+    /* MOBILE RESPONSIVE */
+    @media (max-width: 768px) {
         .register-card {
             padding: 2rem 1.5rem;
-            margin: 1rem;
         }
 
         .register-header h2 {
-            font-size: 1.6rem;
+            font-size: 1.5rem;
+        }
+
+        .input-wrapper input {
+            padding: 0.75rem 0.875rem;
+        }
+
+        .register-btn {
+            padding: 0.875rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .register-container {
+            padding: 1rem;
+        }
+
+        .register-card {
+            padding: 1.5rem 1rem;
+            border-radius: 20px;
+        }
+
+        .register-header h2 {
+            font-size: 1.35rem;
+        }
+
+        .register-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .register-form {
+            gap: 1rem;
         }
     }
 </style>
@@ -148,48 +205,155 @@
 <div class="register-container">
     <div class="register-card">
         <div class="register-header">
-            <h2>{{ t('registration') }}</h2>
-            <p>{{ t('registration_subtitle') }}</p>
+            <h2>📝 Регистрация</h2>
+            <p>Создайте новый аккаунт учителя</p>
         </div>
 
         {% if error %}
-        <div class="error-message">{{ error }}</div>
+        <div class="error-message">
+            ⚠️ {{ error }}
+        </div>
         {% endif %}
 
-        <form method="post">
+        <form method="post" class="register-form">
             <div class="form-group">
-                <label>{{ t('username') }}</label>
-                <input name="username" type="text" required minlength="3">
-                <div class="form-helper">{{ t('error_short_username') }}</div>
+                <label for="username">
+                    Логин <span class="required">*</span>
+                </label>
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        placeholder="Введите логин"
+                        required
+                        minlength="3"
+                        autocomplete="username"
+                    >
+                </div>
+                <div class="password-hint">Минимум 3 символа</div>
             </div>
 
             <div class="form-group">
-                <label>{{ t('full_name') }}</label>
-                <input name="full_name" type="text" required>
+                <label for="password">
+                    Пароль <span class="required">*</span>
+                </label>
+                <div class="input-wrapper">
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        placeholder="Придумайте пароль"
+                        required
+                        minlength="6"
+                        autocomplete="new-password"
+                    >
+                </div>
+                <div class="password-hint">Минимум 6 символов</div>
             </div>
 
             <div class="form-group">
-                <label>{{ t('school') }}</label>
-                <input name="school" type="text" placeholder="{{ t('school') }}">
+                <label for="password_confirm">
+                    Подтвердите пароль <span class="required">*</span>
+                </label>
+                <div class="input-wrapper">
+                    <input 
+                        type="password" 
+                        id="password_confirm" 
+                        name="password_confirm" 
+                        placeholder="Повторите пароль"
+                        required
+                        minlength="6"
+                        autocomplete="new-password"
+                    >
+                </div>
             </div>
 
             <div class="form-group">
-                <label>{{ t('password') }}</label>
-                <input name="password" type="password" required minlength="6">
-                <div class="form-helper">{{ t('error_short_password') }}</div>
+                <label for="full_name">
+                    ФИО <span class="optional">(необязательно)</span>
+                </label>
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="full_name" 
+                        name="full_name" 
+                        placeholder="Иванов Иван Иванович"
+                        autocomplete="name"
+                    >
+                </div>
             </div>
 
             <div class="form-group">
-                <label>{{ t('confirm_password') }}</label>
-                <input name="confirm_password" type="password" required minlength="6">
+                <label for="school">
+                    Школа <span class="optional">(необязательно)</span>
+                </label>
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="school" 
+                        name="school" 
+                        placeholder="Например: Школа №1"
+                        autocomplete="organization"
+                    >
+                </div>
             </div>
 
-            <button type="submit" class="register-btn">{{ t('register') }}</button>
+            <div class="form-group">
+                <label for="category">
+                    Категория <span class="optional">(необязательно)</span>
+                </label>
+                <div class="input-wrapper">
+                    <select id="category" name="category">
+                        <option value="">Выберите категорию</option>
+                        <option value="Молодой специалист">Молодой специалист</option>
+                        <option value="Педагог-модератор">Педагог-модератор</option>
+                        <option value="Педагог-эксперт">Педагог-эксперт</option>
+                        <option value="Педагог-исследователь">Педагог-исследователь</option>
+                        <option value="Педагог-мастер">Педагог-мастер</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="subject">
+                    Предмет <span class="optional">(необязательно)</span>
+                </label>
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="subject" 
+                        name="subject" 
+                        placeholder="Например: Математика"
+                    >
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="experience">
+                    Стаж работы (лет) <span class="optional">(необязательно)</span>
+                </label>
+                <div class="input-wrapper">
+                    <input 
+                        type="number" 
+                        id="experience" 
+                        name="experience" 
+                        placeholder="0"
+                        min="0"
+                        value="0"
+                    >
+                </div>
+            </div>
+
+            <button type="submit" class="register-btn">
+                ✅ Зарегистрироваться
+            </button>
         </form>
 
         <div class="login-link">
-            {{ t('have_account') }} <a href="/login">{{ t('login_here') }}</a>
+            Уже есть аккаунт? <a href="/login">Войти</a>
         </div>
     </div>
 </div>
+
 {% endblock %}
