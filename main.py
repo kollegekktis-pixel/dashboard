@@ -632,4 +632,3 @@ def create_user(
     db.add(new_user)
     db.commit()
     return RedirectResponse(url="/dashboard?success=user_created", status_code=303)
-
