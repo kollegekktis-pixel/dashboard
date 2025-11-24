@@ -110,7 +110,7 @@ TRANSLATIONS = {
         "reports": "Отчёты",
         
         # Логин
-        "welcome": "UstasSapa Lab",
+        "welcome": "Jetistik Hub",
         "login_subtitle": "Войдите в систему",
         "username": "Логин",
         "password": "Пароль",
@@ -196,7 +196,7 @@ TRANSLATIONS = {
     },
     "kk": {
         # Жалпы
-        "app_title": "UstasSapa Lab",
+        "app_title": "Jetistik Hub",
         "app_subtitle": "Мұғалімнің жетістіктерін бағалау рейтингтік жүйесі",
         "language": "Тіл",
         "login": "Кіру",
@@ -210,7 +210,7 @@ TRANSLATIONS = {
         "reports": "Есептер",
         
         # Кіру
-        "welcome": "UstasSapa Lab",
+        "welcome": "Jetistik Hub",
         "login_subtitle": "Жүйеге кіріңіз",
         "username": "Логин",
         "password": "Құпия сөз",
@@ -632,3 +632,4 @@ def create_user(
     db.add(new_user)
     db.commit()
     return RedirectResponse(url="/dashboard?success=user_created", status_code=303)
+
