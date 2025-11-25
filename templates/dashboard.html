@@ -406,10 +406,10 @@
                         
                         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem;">
                             <span style="background: #f0f0f0; padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">
-                                {{ t('category_' + ach.category) }}
+                                {{ t('category_' + (ach.category or 'other')) }}
                             </span>
                             <span style="background: #e8f4f8; color: #0077b6; padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">
-                                {{ t('level_' + ach.level) }}
+                                {{ t('level_' + (ach.level or 'school')) }}
                             </span>
                             <span style="background: #fff3cd; color: #856404; padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">
                                 {{ t('place_' + (ach.place or 'certificate')) }}
@@ -500,9 +500,9 @@
                     <td>{{ ach.user.full_name or ach.user.username }}</td>
                     <td>{{ ach.student_name or '—' }}</td>
                     <td>{{ ach.title }}</td>
-                    <td>{{ t('category_' + ach.category) }}</td>
-                    <td>{{ t('level_' + ach.level) }}</td>
-                    <td>{{ t('place_' + ach.place) }}</td>
+                    {{ t('category_' + (ach.category or 'other')) }}
+                    {{ t('level_' + (ach.level or 'school')) }}
+                    {{ t('place_' + (ach.place or 'certificate')) }}
                     <td><strong style="color: #7030A0;">{{ ach.points }}</strong></td>
                     <td>
                         <div style="display: flex; gap: 0.5rem;">
@@ -594,4 +594,5 @@ function switchAchievementType(type) {
 </script>
 
 {% endblock %}
+
 
