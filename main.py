@@ -579,11 +579,13 @@ def dashboard(
 
 @app.post("/add-achievement")
 async def add_achievement(
+    achievement_type: str = Form(...),
     title: str = Form(...),
     description: str = Form(""),
-    category: str = Form("other"),
-    level: str = Form("school"),
-    points: float = Form(0.0),
+    category: str = Form(...),
+    level: str = Form(...),
+    place: str = Form(...),
+    student_name: str = Form(None),  # Только для достижений ученика
     file: Optional[UploadFile] = None,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -592,11 +594,20 @@ async def add_achievement(
     if not user:
         return RedirectResponse(url="/login")
     
+    # АВТОМАТИЧЕСКИЙ РАСЧЁТ БАЛЛОВ
+    points_table = {
+        'city': {'1': 35, '2': 30, '3': 25, 'certificate': 10},
+        'regional': {'1': 40, '2': 35, '3': 30, 'certificate': 15},
+        'national': {'1': 45, '2': 40, '3': 35, 'certificate': 20},
+        'international': {'1': 50, '2': 45, '3': 40, 'certificate': 25}
+    }
+    
+    calculated_points = points_table.get(level, {}).get(place, 0)
+    
     file_path = None
     
     # Обработка загрузки файла
     if file and file.filename:
-        # Проверка размера файла (5 МБ = 5 * 1024 * 1024 байт)
         content = await file.read()
         if len(content) > 5 * 1024 * 1024:
             t = lambda key: get_translation(lang, key)
@@ -609,7 +620,6 @@ async def add_achievement(
                 "t": t
             })
         
-        # Сохранение файла
         import uuid
         file_ext = file.filename.split(".")[-1]
         unique_filename = f"{uuid.uuid4()}.{file_ext}"
@@ -620,12 +630,15 @@ async def add_achievement(
     
     new_achievement = Achievement(
         user_id=user.id,
+        achievement_type=achievement_type,  # ✅ СОХРАНЯЕМ ТИП
+        student_name=student_name,  # ✅ СОХРАНЯЕМ ФИО УЧЕНИКА
         title=title,
         description=description,
         category=category,
         level=level,
+        place=place,  # ✅ СОХРАНЯЕМ МЕСТО
         file_path=file_path,
-        points=points,
+        points=calculated_points,  # ✅ АВТОМАТИЧЕСКИЙ РАСЧЁТ
         status="pending"
     )
     db.add(new_achievement)
@@ -696,4 +709,5 @@ def create_user(
     db.add(new_user)
     db.commit()
     return RedirectResponse(url="/dashboard?success=user_created", status_code=303)
+
 
