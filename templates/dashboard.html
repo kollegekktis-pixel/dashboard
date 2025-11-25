@@ -1,711 +1,597 @@
-import os
-import secrets
-from datetime import datetime
-from typing import Optional
+{% extends "layout.html" %}
 
-import bcrypt
-from fastapi import FastAPI, Request, Form, Depends, HTTPException, Cookie, UploadFile
-from fastapi.responses import RedirectResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from itsdangerous import URLSafeTimedSerializer
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
+{% block title %}{{ t('dashboard') }} - {{ t('app_title') }}{% endblock %}
 
-# ===========================
-# DATABASE SETUP
-# ===========================
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+{% block content %}
 
-if not DATABASE_URL:
-    DATABASE_URL = "sqlite:///./db.sqlite3"
-
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
-SessionLocal = sessionmaker(bind=engine)
-Base = declarative_base()
-
-# ===========================
-# MODELS
-# ===========================
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, nullable=False, index=True)
-    password_hash = Column(String, nullable=False)
-    full_name = Column(String)
-    is_admin = Column(Boolean, default=False)
-    school = Column(String)
-    
-    # Добавьте эти поля:
-    subject = Column(String)  # Предмет
-    category = Column(String)  # Категория учителя
-    experience = Column(Integer, default=0)  # Стаж работы
-    
-    achievements = relationship("Achievement", back_populates="user")
-
-    def check_password(self, password: str) -> bool:
-        password_bytes = password.encode('utf-8')[:72]
-        return bcrypt.checkpw(password_bytes, self.password_hash.encode('utf-8'))
-
-
-class Achievement(Base):
-    __tablename__ = "achievements"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    
-    # Добавьте эти новые поля:
-    achievement_type = Column(String, default="student")  # student, teacher, social, educational
-    student_name = Column(String)  # ФИО ученика (для достижений ученика)
-    place = Column(String)  # 1, 2, 3, certificate
-    
-    title = Column(String, nullable=False)
-    description = Column(String)
-    category = Column(String)
-    level = Column(String)
-    file_path = Column(String)
-    points = Column(Float, default=0.0)
-    status = Column(String, default="pending")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    user = relationship("User", back_populates="achievements")
-
-
-Base.metadata.create_all(bind=engine)
-
-# ===========================
-# PASSWORD HASHING
-# ===========================
-def hash_password(password: str) -> str:
-    password_bytes = password.encode('utf-8')[:72]
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password_bytes, salt).decode('utf-8')
-
-
-# ===========================
-# APP SETUP
-# ===========================
-app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Создаём папку для загрузки файлов
-import os
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-
-templates = Jinja2Templates(directory="templates")
-
-SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
-serializer = URLSafeTimedSerializer(SECRET_KEY)
-
-ALLOW_REGISTRATION = os.getenv("ALLOW_REGISTRATION", "true").lower() == "true"
-
-# ===========================
-# TRANSLATIONS
-# ===========================
-TRANSLATIONS = {
-    "ru": {
-        # Общее
-        "app_title": "Jetistik Hub",
-        "app_subtitle": "Рейтинговая система оценки достижений учителя",
-        "language": "Язык",
-        "login": "Войти",
-        "logout": "Выйти",
-        "register": "Зарегистрироваться",
-        "dashboard": "Панель",
-        "profile": "Профиль",
-        "add_achievement": "Добавить достижение",
-        "my_achievements": "Мои достижения",
-        "admin_panel": "Админ-панель",
-        "reports": "Отчёты",
-        
-        # Логин
-        "welcome": "Jetistik Hub",
-        "login_subtitle": "Войдите в систему",
-        "username": "Логин",
-        "password": "Пароль",
-        "no_account": "Нет аккаунта?",
-        "register_here": "Зарегистрируйтесь здесь",
-        
-        # Регистрация
-        "registration": "Регистрация",
-        "registration_subtitle": "Создайте новый аккаунт",
-        "full_name": "ФИО",
-        "school": "Школа",
-        "confirm_password": "Подтвердите пароль",
-        "have_account": "Уже есть аккаунт?",
-        "login_here": "Войдите здесь",
-        
-        # Профиль
-        "welcome_user": "Добро пожаловать",
-        "total_points": "Всего баллов",
-        "pending_achievements": "Ожидают проверки",
-        "approved_achievements": "Подтверждено",
-        
-        # Достижения
-        "title": "Название",
-        "description": "Описание",
-        "category": "Категория",
-        "level": "Уровень",
-        "file": "Файл (макс. 5 МБ)",
-        "points": "Баллы",
-        "status": "Статус",
-        "date": "Дата",
-        "actions": "Действия",
-        "approve": "Подтвердить",
-        "reject": "Отклонить",
-        "delete": "Удалить",
-        "save": "Сохранить",
-        "cancel": "Отмена",
-        "download": "Скачать",
-        
-        # Типы достижений
-        "student_achievements": "Достижения ученика",
-        "teacher_achievements": "Достижения педагога",
-        "social_activity": "Общественно-социальная активность",
-        "educational_activity": "Воспитательная активность",
-        "student_name": "ФИО ученика",
-        "place": "Место",
-        
-        # Места
-        "place_1": "1 место",
-        "place_2": "2 место",
-        "place_3": "3 место",
-        "place_certificate": "Сертификат участника",
-        
-        # Категории
-        "category_publications": "Публикации",
-        "category_conferences": "Конференции",
-        "category_olympiads": "Олимпиады",
-        "category_projects": "Проекты",
-        "category_courses": "Курсы",
-        "category_other": "Другое",
-        
-        # Категории для ученика
-        "category_competitions": "Конкурсы",
-        "category_olympiad": "Олимпиада",
-        "category_project": "Проект",
-        
-        # Категории для учителя
-        "category_teacher_competitions": "Конкурсы",
-        "category_teacher_olympiad": "Олимпиада",
-        "category_teacher_projects": "Проекты",
-        "category_experience_exchange": "Обмен опыта",
-        "category_methodical": "Методические пособия",
-        
-        # Уровни
-        "level_school": "Школьный",
-        "level_city": "Городской",
-        "level_regional": "Областной",
-        "level_national": "Республиканский",
-        "level_international": "Международный",
-        
-        # Статусы
-        "status_pending": "Ожидает",
-        "status_approved": "Подтверждено",
-        "status_rejected": "Отклонено",
-        
-        # Рейтинг
-        "top_teachers": "Топ-10 учителей",
-        "rank": "Место",
-        "teacher": "Учитель",
-        "school_ratings": "Рейтинг школ",
-        "total_teachers": "Всего учителей",
-        
-        # Админ
-        "all_users": "Все пользователи",
-        "create_user": "Создать пользователя",
-        "pending_review": "На проверке",
-        "admin_role": "Админ",
-        "teacher_role": "Учитель",
-        
-        # Сообщения
-        "error_invalid_credentials": "Неверный логин или пароль",
-        "error_username_exists": "Логин уже занят",
-        "error_passwords_dont_match": "Пароли не совпадают",
-        "error_short_username": "Логин должен быть минимум 3 символа",
-        "error_short_password": "Пароль должен быть минимум 6 символов",
-        "error_file_too_large": "Файл слишком большой (макс. 5 МБ)",
-        "success_registered": "Регистрация успешна!",
-        "success_achievement_added": "Достижение добавлено!",
-        "success_user_created": "Пользователь создан!",
-    },
-    "kk": {
-        # Жалпы
-        "app_title": "Jetistik Hub",
-        "app_subtitle": "Мұғалімнің жетістіктерін бағалау рейтингтік жүйесі",
-        "language": "Тіл",
-        "login": "Кіру",
-        "logout": "Шығу",
-        "register": "Тіркелу",
-        "dashboard": "Басты бет",
-        "profile": "Профиль",
-        "add_achievement": "Жетістік қосу",
-        "my_achievements": "Менің жетістіктерім",
-        "admin_panel": "Әкімші панелі",
-        "reports": "Есептер",
-        
-        # Кіру
-        "welcome": "Jetistik Hub",
-        "login_subtitle": "Жүйеге кіріңіз",
-        "username": "Логин",
-        "password": "Құпия сөз",
-        "no_account": "Аккаунт жоқ па?",
-        "register_here": "Мұнда тіркеліңіз",
-        
-        # Тіркелу
-        "registration": "Тіркелу",
-        "registration_subtitle": "Жаңа аккаунт жасаңыз",
-        "full_name": "Аты-жөні",
-        "school": "Мектеп",
-        "confirm_password": "Құпия сөзді растаңыз",
-        "have_account": "Аккаунт бар ма?",
-        "login_here": "Мұнда кіріңіз",
-        
-        # Профиль
-        "welcome_user": "Қош келдіңіз",
-        "total_points": "Барлық ұпайлар",
-        "pending_achievements": "Тексеруді күтуде",
-        "approved_achievements": "Расталған",
-        
-        # Жетістіктер
-        "title": "Атауы",
-        "description": "Сипаттама",
-        "category": "Санат",
-        "level": "Деңгей",
-        "file": "Файл (макс. 5 МБ)",
-        "points": "Ұпайлар",
-        "status": "Мәртебе",
-        "date": "Күні",
-        "actions": "Әрекеттер",
-        "approve": "Растау",
-        "reject": "Қабылдамау",
-        "delete": "Жою",
-        "save": "Сақтау",
-        "cancel": "Болдырмау",
-        "download": "Жүктеп алу",
-        
-        # Жетістік түрлері
-        "student_achievements": "Оқушының жетістіктері",
-        "teacher_achievements": "Педагогтың жетістіктері",
-        "social_activity": "Қоғамдық-әлеуметтік белсенділік",
-        "educational_activity": "Тәрбиелік белсенділік",
-        "student_name": "Оқушының аты-жөні",
-        "place": "Орын",
-        
-        # Орындар
-        "place_1": "1 орын",
-        "place_2": "2 орын",
-        "place_3": "3 орын",
-        "place_certificate": "Қатысушы сертификаты",
-        
-        # Санаттар
-        "category_publications": "Жарияланымдар",
-        "category_conferences": "Конференциялар",
-        "category_olympiads": "Олимпиадалар",
-        "category_projects": "Жобалар",
-        "category_courses": "Курстар",
-        "category_other": "Басқа",
-        
-        # Оқушы үшін санаттар
-        "category_competitions": "Конкурстар",
-        "category_olympiad": "Олимпиада",
-        "category_project": "Жоба",
-        
-        # Мұғалім үшін санаттар
-        "category_teacher_competitions": "Конкурстар",
-        "category_teacher_olympiad": "Олимпиада",
-        "category_teacher_projects": "Жобалар",
-        "category_experience_exchange": "Тәжірибе алмасу",
-        "category_methodical": "Әдістемелік құралдар",
-        
-        # Деңгейлер
-        "level_school": "Мектептік",
-        "level_city": "Қалалық",
-        "level_regional": "Облыстық",
-        "level_national": "Республикалық",
-        "level_international": "Халықаралық",
-        
-        # Мәртебелер
-        "status_pending": "Күтуде",
-        "status_approved": "Расталған",
-        "status_rejected": "Қабылданбаған",
-        
-        # Рейтинг
-        "top_teachers": "Топ-10 мұғалімдер",
-        "rank": "Орын",
-        "teacher": "Мұғалім",
-        "school_ratings": "Мектептер рейтингі",
-        "total_teachers": "Барлық мұғалімдер",
-        
-        # Әкімші
-        "all_users": "Барлық пайдаланушылар",
-        "create_user": "Пайдаланушы жасау",
-        "pending_review": "Тексеруде",
-        "admin_role": "Әкімші",
-        "teacher_role": "Мұғалім",
-        
-        # Хабарламалар
-        "error_invalid_credentials": "Логин немесе құпия сөз қате",
-        "error_username_exists": "Логин бос емес",
-        "error_passwords_dont_match": "Құпия сөздер сәйкес келмейді",
-        "error_short_username": "Логин кемінде 3 таңба болуы керек",
-        "error_short_password": "Құпия сөз кемінде 6 таңба болуы керек",
-        "error_file_too_large": "Файл тым үлкен (макс. 5 МБ)",
-        "success_registered": "Тіркелу сәтті өтті!",
-        "success_achievement_added": "Жетістік қосылды!",
-        "success_user_created": "Пайдаланушы жасалды!",
-    }
+<style>
+.sub-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    background: white;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 2px solid #FFFFFF;
 }
 
-def get_translation(lang: str, key: str) -> str:
-    """Получить перевод по ключу"""
-    return TRANSLATIONS.get(lang, TRANSLATIONS["ru"]).get(key, key)
+.sub-tab {
+    padding: 0.75rem 1.25rem;
+    background: #f0f0f0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    color: #333;
+    border: 2px solid transparent;
+}
 
-# ===========================
-# DEPENDENCIES
-# ===========================
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+.sub-tab:hover {
+    background: #7030A0;
+    color: white;
+    transform: translateY(-2px);
+}
 
+.sub-tab.active {
+    background: #7030A0;
+    color: white;
+    border-color: #7030A0;
+}
 
-def get_current_user(session_token: Optional[str] = Cookie(None), db: Session = Depends(get_db)) -> Optional[User]:
-    if not session_token:
-        return None
-    try:
-        user_id = serializer.loads(session_token, max_age=3600 * 24 * 7)
-        return db.query(User).filter(User.id == user_id).first()
-    except:
-        return None
+.points-info {
+    background: #f0f0f0;
+    padding: 1rem;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
 
+.points-table {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
 
-def get_language(language: Optional[str] = Cookie(None)) -> str:
-    """Получить текущий язык из cookie"""
-    return language if language in ["ru", "kk"] else "ru"
+.points-row {
+    background: white;
+    padding: 0.5rem;
+    border-radius: 6px;
+}
+</style>
 
+<!-- ГЛАВНЫЕ TABS -->
+<div class="tabs">
+    <div class="tab active" onclick="switchMainTab('profile')">👤 {{ t('profile') }}</div>
+    <div class="tab" onclick="switchMainTab('achievements')">🏆 {{ t('my_achievements') }}</div>
+    {% if user.is_admin %}
+    <div class="tab" onclick="switchMainTab('admin')">⚙️ {{ t('admin_panel') }}</div>
+    {% endif %}
+    <div class="tab" onclick="switchMainTab('reports')">📊 {{ t('reports') }}</div>
+</div>
 
-# ===========================
-# STARTUP EVENT
-# ===========================
-@app.on_event("startup")
-def create_admin():
-    db = SessionLocal()
-    try:
-        admin = db.query(User).filter(User.username == "admin").first()
-        if not admin:
-            admin_pass = os.getenv("ADMIN_PASS", "adminpass123")
-            hashed_pw = hash_password(admin_pass)
-            new_admin = User(
-                username="admin",
-                password_hash=hashed_pw,
-                full_name="Administrator",
-                is_admin=True,
-                school="System"
-            )
-            db.add(new_admin)
-            db.commit()
-            print("✅ Created admin user: admin")
-        else:
-            print("ℹ️ Admin user already exists")
-    except Exception as e:
-        print(f"⚠️ Error creating admin: {e}")
-        db.rollback()
-    finally:
-        db.close()
+<!-- TAB: PROFILE -->
+<div id="profile" class="tab-content">
+    <div class="card">
+        <h2>{{ t('profile') }}</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+            <div style="background: linear-gradient(135deg, #7030A0, #9b59d0); color: white; padding: 1.5rem; border-radius: 12px;">
+                <div style="font-size: 2rem; font-weight: 700;">{{ t('welcome_user') }}</div>
+                <div style="font-size: 1.2rem; margin-top: 0.5rem;">{{ user.full_name or user.username }}</div>
+                {% if user.school %}
+                <div style="margin-top: 0.5rem; opacity: 0.9;">🏫 {{ user.school }}</div>
+                {% endif %}
+                {% if user.subject %}
+                <div style="margin-top: 0.25rem; opacity: 0.9;">📚 {{ user.subject }}</div>
+                {% endif %}
+                {% if user.category %}
+                <div style="margin-top: 0.25rem; opacity: 0.9;">🎓 {{ user.category }}</div>
+                {% endif %}
+                {% if user.experience %}
+                <div style="margin-top: 0.25rem; opacity: 0.9;">⏱️ {{ t('experience') }}: {{ user.experience }} лет</div>
+                {% endif %}
+            </div>
 
+            {% set total_points = achievements|selectattr('status', 'equalto', 'approved')|map(attribute='points')|sum %}
+            {% set pending_count = achievements|selectattr('status', 'equalto', 'pending')|list|length %}
+            {% set approved_count = achievements|selectattr('status', 'equalto', 'approved')|list|length %}
 
-# ===========================
-# ROUTES - Language Switcher
-# ===========================
-@app.get("/set-language/{lang}")
-def set_language(lang: str, request: Request):
-    """Переключить язык"""
-    if lang not in ["ru", "kk"]:
-        lang = "ru"
-    
-    response = RedirectResponse(url=request.headers.get("referer", "/"), status_code=303)
-    response.set_cookie(key="language", value=lang, max_age=3600 * 24 * 365)
-    return response
+            <div style="background: white; border: 2px solid #FFFFFF; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                <div style="color: #666; margin-bottom: 0.5rem;">{{ t('total_points') }}</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #7030A0;">{{ total_points }}</div>
+            </div>
 
+            <div style="background: white; border: 2px solid #FFFFFF; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                <div style="color: #666; margin-bottom: 0.5rem;">{{ t('pending_achievements') }}</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #f39c12;">{{ pending_count }}</div>
+            </div>
 
-# ===========================
-# ROUTES - AUTH
-# ===========================
-@app.get("/", response_class=HTMLResponse)
-def index(request: Request, user: User = Depends(get_current_user), lang: str = Depends(get_language)):
-    if user:
-        return RedirectResponse(url="/dashboard")
-    return RedirectResponse(url="/login")
+            <div style="background: white; border: 2px solid #FFFFFF; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                <div style="color: #666; margin-bottom: 0.5rem;">{{ t('approved_achievements') }}</div>
+                <div style="font-size: 2.5rem; font-weight: 700; color: #27ae60;">{{ approved_count }}</div>
+            </div>
+        </div>
+    </div>
+</div>
 
+<!-- TAB: ACHIEVEMENTS (с подвкладками) -->
+<div id="achievements" class="tab-content" style="display: none;">
+    <!-- ПОД-ВКЛАДКИ для типов достижений -->
+    <div class="sub-tabs">
+        <div class="sub-tab active" onclick="switchAchievementType('student')">
+            👨‍🎓 {{ t('student_achievements') }}
+        </div>
+        <div class="sub-tab" onclick="switchAchievementType('teacher')">
+            👨‍🏫 {{ t('teacher_achievements') }}
+        </div>
+        <div class="sub-tab" onclick="switchAchievementType('social')">
+            🤝 {{ t('social_activity') }}
+        </div>
+        <div class="sub-tab" onclick="switchAchievementType('educational')">
+            📖 {{ t('educational_activity') }}
+        </div>
+    </div>
 
-@app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, lang: str = Depends(get_language)):
-    t = lambda key: get_translation(lang, key)
-    return templates.TemplateResponse("login.html", {
-        "request": request,
-        "lang": lang,
-        "t": t
-    })
+    <!-- ТАБЛИЦА БАЛЛОВ -->
+    <div class="points-info">
+        <strong>💡 Система начисления баллов:</strong>
+        <div class="points-table">
+            <div class="points-row"><strong>1 место:</strong> Город-35, Область-40, Республика-45, Международный-50</div>
+            <div class="points-row"><strong>2 место:</strong> Город-30, Область-35, Республика-40, Международный-45</div>
+            <div class="points-row"><strong>3 место:</strong> Город-25, Область-30, Республика-35, Международный-40</div>
+            <div class="points-row"><strong>Сертификат:</strong> Город-10, Область-15, Республика-20, Международный-25</div>
+        </div>
+    </div>
 
+    <!-- ФОРМА ДОБАВЛЕНИЯ (Достижения ученика) -->
+    <div id="form-student" class="card achievement-form">
+        <h2>➕ {{ t('student_achievements') }}</h2>
+        <form method="post" action="/add-achievement" enctype="multipart/form-data">
+            <input type="hidden" name="achievement_type" value="student">
+            
+            <div style="display: grid; gap: 1rem;">
+                <!-- ФИО УЧЕНИКА -->
+                <div>
+                    <label>{{ t('student_name') }} *</label>
+                    <input name="student_name" type="text" required placeholder="Иванов Иван Иванович">
+                </div>
 
-@app.post("/login")
-def login_post(
-    username: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db),
-    lang: str = Depends(get_language)
-):
-    user = db.query(User).filter(User.username == username).first()
-    if not user or not user.check_password(password):
-        t = lambda key: get_translation(lang, key)
-        return templates.TemplateResponse("login.html", {
-            "request": {},
-            "error": t("error_invalid_credentials"),
-            "lang": lang,
-            "t": t
-        })
-    
-    token = serializer.dumps(user.id)
-    response = RedirectResponse(url="/dashboard", status_code=303)
-    response.set_cookie(key="session_token", value=token, httponly=True, max_age=3600 * 24 * 7)
-    return response
+                <div>
+                    <label>{{ t('title') }} *</label>
+                    <input name="title" type="text" required placeholder="Название достижения">
+                </div>
 
+                <div>
+                    <label>{{ t('description') }}</label>
+                    <textarea name="description" rows="3" placeholder="Описание"></textarea>
+                </div>
 
-@app.get("/register", response_class=HTMLResponse)
-def register_page(request: Request, lang: str = Depends(get_language)):
-    if not ALLOW_REGISTRATION:
-        return RedirectResponse(url="/login")
-    t = lambda key: get_translation(lang, key)
-    return templates.TemplateResponse("register.html", {
-        "request": request,
-        "lang": lang,
-        "t": t
-    })
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label>Категория</label>
+                        <select name="category" required>
+                            <option value="competitions">{{ t('category_competitions') }}</option>
+                            <option value="olympiads">{{ t('category_olympiads') }}</option>
+                            <option value="projects">{{ t('category_projects') }}</option>
+                        </select>
+                    </div>
 
+                    <div>
+                        <label>Уровень</label>
+                        <select name="level" required>
+                            <option value="city">{{ t('level_city') }}</option>
+                            <option value="regional">{{ t('level_regional') }}</option>
+                            <option value="national">{{ t('level_national') }}</option>
+                            <option value="international">{{ t('level_international') }}</option>
+                        </select>
+                    </div>
+                </div>
 
-@app.post("/register")
-def register_post(
-    username: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...),
-    full_name: str = Form(...),
-    school: str = Form(""),
-    db: Session = Depends(get_db),
-    lang: str = Depends(get_language)
-):
-    t = lambda key: get_translation(lang, key)
-    
-    if not ALLOW_REGISTRATION:
-        return RedirectResponse(url="/login")
-    
-    error = None
-    if len(username) < 3:
-        error = t("error_short_username")
-    elif len(password) < 6:
-        error = t("error_short_password")
-    elif password != confirm_password:
-        error = t("error_passwords_dont_match")
-    elif db.query(User).filter(User.username == username).first():
-        error = t("error_username_exists")
-    
-    if error:
-        return templates.TemplateResponse("register.html", {
-            "request": {},
-            "error": error,
-            "lang": lang,
-            "t": t
-        })
-    
-    hashed_pw = hash_password(password)
-    new_user = User(
-        username=username,
-        password_hash=hashed_pw,
-        full_name=full_name,
-        school=school,
-        is_admin=False
-    )
-    db.add(new_user)
-    db.commit()
-    
-    token = serializer.dumps(new_user.id)
-    response = RedirectResponse(url="/dashboard", status_code=303)
-    response.set_cookie(key="session_token", value=token, httponly=True, max_age=3600 * 24 * 7)
-    return response
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label>Место</label>
+                        <select name="place" required>
+                            <option value="1">{{ t('place_1') }}</option>
+                            <option value="2">{{ t('place_2') }}</option>
+                            <option value="3">{{ t('place_3') }}</option>
+                            <option value="certificate">{{ t('place_certificate') }}</option>
+                        </select>
+                    </div>
 
+                    <div>
+                        <label>{{ t('file') }}</label>
+                        <input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png" style="padding: 0.5rem;">
+                    </div>
+                </div>
 
-@app.get("/logout")
-def logout():
-    response = RedirectResponse(url="/login")
-    response.delete_cookie("session_token")
-    return response
+                <button type="submit">💾 {{ t('save') }}</button>
+            </div>
+        </form>
+    </div>
 
+    <!-- ФОРМА ДОБАВЛЕНИЯ (Достижения педагога) -->
+    <div id="form-teacher" class="card achievement-form" style="display: none;">
+        <h2>➕ {{ t('teacher_achievements') }}</h2>
+        <form method="post" action="/add-achievement" enctype="multipart/form-data">
+            <input type="hidden" name="achievement_type" value="teacher">
+            
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <label>{{ t('title') }} *</label>
+                    <input name="title" type="text" required placeholder="Название достижения">
+                </div>
 
-# ===========================
-# ROUTES - DASHBOARD
-# ===========================
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(
-    request: Request,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    lang: str = Depends(get_language)
-):
-    if not user:
-        return RedirectResponse(url="/login")
-    
-    t = lambda key: get_translation(lang, key)
-    
-    achievements = db.query(Achievement).filter(Achievement.user_id == user.id).all()
-    all_users = db.query(User).all() if user.is_admin else []
-    pending = db.query(Achievement).filter(Achievement.status == "pending").all() if user.is_admin else []
-    
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "user": user,
-        "achievements": achievements,
-        "all_users": all_users,
-        "pending_achievements": pending,
-        "allow_registration": ALLOW_REGISTRATION,
-        "lang": lang,
-        "t": t
-    })
+                <div>
+                    <label>{{ t('description') }}</label>
+                    <textarea name="description" rows="3" placeholder="Описание"></textarea>
+                </div>
 
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label>Категория</label>
+                        <select name="category" required>
+                            <option value="competitions">{{ t('category_competitions') }}</option>
+                            <option value="olympiads">{{ t('category_olympiads') }}</option>
+                            <option value="projects">{{ t('category_projects') }}</option>
+                            <option value="experience_exchange">{{ t('category_experience_exchange') }}</option>
+                            <option value="methodical">{{ t('category_methodical') }}</option>
+                        </select>
+                    </div>
 
-@app.post("/add-achievement")
-async def add_achievement(
-    achievement_type: str = Form(...),
-    title: str = Form(...),
-    description: str = Form(""),
-    category: str = Form(...),
-    level: str = Form(...),
-    place: str = Form(...),
-    student_name: str = Form(None),  # Только для достижений ученика
-    file: Optional[UploadFile] = None,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    lang: str = Depends(get_language)
-):
-    if not user:
-        return RedirectResponse(url="/login")
-    
-    # АВТОМАТИЧЕСКИЙ РАСЧЁТ БАЛЛОВ
-    points_table = {
-        'city': {'1': 35, '2': 30, '3': 25, 'certificate': 10},
-        'regional': {'1': 40, '2': 35, '3': 30, 'certificate': 15},
-        'national': {'1': 45, '2': 40, '3': 35, 'certificate': 20},
-        'international': {'1': 50, '2': 45, '3': 40, 'certificate': 25}
-    }
-    
-    calculated_points = points_table.get(level, {}).get(place, 0)
-    
-    file_path = None
-    
-    # Обработка загрузки файла
-    if file and file.filename:
-        content = await file.read()
-        if len(content) > 5 * 1024 * 1024:
-            t = lambda key: get_translation(lang, key)
-            return templates.TemplateResponse("dashboard.html", {
-                "request": {},
-                "user": user,
-                "achievements": db.query(Achievement).filter(Achievement.user_id == user.id).all(),
-                "error": t("error_file_too_large"),
-                "lang": lang,
-                "t": t
-            })
+                    <div>
+                        <label>Уровень</label>
+                        <select name="level" required>
+                            <option value="city">{{ t('level_city') }}</option>
+                            <option value="regional">{{ t('level_regional') }}</option>
+                            <option value="national">{{ t('level_national') }}</option>
+                            <option value="international">{{ t('level_international') }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label>Место</label>
+                        <select name="place" required>
+                            <option value="1">{{ t('place_1') }}</option>
+                            <option value="2">{{ t('place_2') }}</option>
+                            <option value="3">{{ t('place_3') }}</option>
+                            <option value="certificate">{{ t('place_certificate') }}</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>{{ t('file') }}</label>
+                        <input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png" style="padding: 0.5rem;">
+                    </div>
+                </div>
+
+                <button type="submit">💾 {{ t('save') }}</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- ФОРМА ДОБАВЛЕНИЯ (Общественно-социальная активность) -->
+    <div id="form-social" class="card achievement-form" style="display: none;">
+        <h2>➕ {{ t('social_activity') }}</h2>
+        <form method="post" action="/add-achievement" enctype="multipart/form-data">
+            <input type="hidden" name="achievement_type" value="social">
+            <input type="hidden" name="category" value="social">
+            
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <label>{{ t('title') }} *</label>
+                    <input name="title" type="text" required placeholder="Название мероприятия">
+                </div>
+
+                <div>
+                    <label>{{ t('description') }}</label>
+                    <textarea name="description" rows="3" placeholder="Описание"></textarea>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label>Уровень</label>
+                        <select name="level" required>
+                            <option value="city">{{ t('level_city') }}</option>
+                            <option value="regional">{{ t('level_regional') }}</option>
+                            <option value="national">{{ t('level_national') }}</option>
+                            <option value="international">{{ t('level_international') }}</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Место</label>
+                        <select name="place" required>
+                            <option value="1">{{ t('place_1') }}</option>
+                            <option value="2">{{ t('place_2') }}</option>
+                            <option value="3">{{ t('place_3') }}</option>
+                            <option value="certificate">{{ t('place_certificate') }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label>{{ t('file') }}</label>
+                    <input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png" style="padding: 0.5rem;">
+                </div>
+
+                <button type="submit">💾 {{ t('save') }}</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- ФОРМА ДОБАВЛЕНИЯ (Воспитательная активность) -->
+    <div id="form-educational" class="card achievement-form" style="display: none;">
+        <h2>➕ {{ t('educational_activity') }}</h2>
+        <form method="post" action="/add-achievement" enctype="multipart/form-data">
+            <input type="hidden" name="achievement_type" value="educational">
+            <input type="hidden" name="category" value="educational">
+            
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <label>{{ t('title') }} *</label>
+                    <input name="title" type="text" required placeholder="Название мероприятия">
+                </div>
+
+                <div>
+                    <label>{{ t('description') }}</label>
+                    <textarea name="description" rows="3" placeholder="Описание"></textarea>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label>Уровень</label>
+                        <select name="level" required>
+                            <option value="city">{{ t('level_city') }}</option>
+                            <option value="regional">{{ t('level_regional') }}</option>
+                            <option value="national">{{ t('level_national') }}</option>
+                            <option value="international">{{ t('level_international') }}</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label>Место</label>
+                        <select name="place" required>
+                            <option value="1">{{ t('place_1') }}</option>
+                            <option value="2">{{ t('place_2') }}</option>
+                            <option value="3">{{ t('place_3') }}</option>
+                            <option value="certificate">{{ t('place_certificate') }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label>{{ t('file') }}</label>
+                    <input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png" style="padding: 0.5rem;">
+                </div>
+
+                <button type="submit">💾 {{ t('save') }}</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- СПИСОК ДОСТИЖЕНИЙ -->
+    <div class="card" style="margin-top: 1.5rem;">
+        <h2>📋 Список достижений</h2>
         
-        import uuid
-        file_ext = file.filename.split(".")[-1]
-        unique_filename = f"{uuid.uuid4()}.{file_ext}"
-        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        {% if achievements %}
+        <div style="display: grid; gap: 1rem; margin-top: 1.5rem;">
+            {% for ach in achievements %}
+            <div class="achievement-item" data-type="{{ ach.achievement_type }}">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                            {% if ach.achievement_type == 'student' %}
+                            <span style="background: #3498db; color: white; padding: 0.25rem 0.6rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600;">👨‍🎓 Ученик</span>
+                            {% elif ach.achievement_type == 'teacher' %}
+                            <span style="background: #9b59b6; color: white; padding: 0.25rem 0.6rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600;">👨‍🏫 Педагог</span>
+                            {% elif ach.achievement_type == 'social' %}
+                            <span style="background: #e67e22; color: white; padding: 0.25rem 0.6rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600;">🤝 Социальная</span>
+                            {% else %}
+                            <span style="background: #16a085; color: white; padding: 0.25rem 0.6rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600;">📖 Воспитательная</span>
+                            {% endif %}
+                        </div>
+                        
+                        <h3 style="color: #7030A0; margin-bottom: 0.5rem;">{{ ach.title }}</h3>
+                        
+                        {% if ach.student_name %}
+                        <div style="color: #666; margin-bottom: 0.5rem;">👨‍🎓 <strong>{{ ach.student_name }}</strong></div>
+                        {% endif %}
+                        
+                        {% if ach.description %}
+                        <p style="color: #666; margin-bottom: 0.5rem;">{{ ach.description }}</p>
+                        {% endif %}
+                        
+                        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem;">
+                            <span style="background: #f0f0f0; padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">
+                                {{ t('category_' + (ach.category or 'other')) }}
+                            </span>
+                            <span style="background: #e8f4f8; color: #0077b6; padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">
+                                {{ t('level_' + (ach.level or 'school')) }}
+                            </span>
+                            <span style="background: #fff3cd; color: #856404; padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">
+                                {{ t('place_' + (ach.place or 'certificate')) }}
+                            </span>
+                            <span style="background: #7030A0; color: white; padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">
+                                ⭐ {{ ach.points }} баллов
+                            </span>
+                            
+                            {% if ach.status == 'pending' %}
+                            <span class="badge pending">⏳ {{ t('status_pending') }}</span>
+                            {% elif ach.status == 'approved' %}
+                            <span class="badge approved">✅ {{ t('status_approved') }}</span>
+                            {% else %}
+                            <span class="badge rejected">❌ {{ t('status_rejected') }}</span>
+                            {% endif %}
+                            
+                            <span style="color: #999; font-size: 0.85rem;">📅 {{ ach.created_at.strftime('%Y-%m-%d') }}</span>
+                        </div>
+                    </div>
+                    
+                    <form method="post" action="/achievement/{{ ach.id }}/delete" style="margin-left: 1rem;">
+                        <button type="submit" onclick="return confirm('Удалить?')" 
+                                style="background: #dc3545; padding: 0.5rem 1rem; font-size: 0.9rem;">
+                            🗑️
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="text-align: center; color: #999; padding: 2rem;">Пока нет достижений 📝</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- TAB: ADMIN PANEL -->
+{% if user.is_admin %}
+<div id="admin" class="tab-content" style="display: none;">
+    <!-- CREATE USER -->
+    <div class="card">
+        <h2>{{ t('create_user') }}</h2>
+        <form method="post" action="/create-user">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <input name="username" placeholder="{{ t('username') }}" required>
+                <input name="password" type="password" placeholder="{{ t('password') }}" required>
+                <input name="full_name" placeholder="{{ t('full_name') }}" required>
+                <input name="school" placeholder="{{ t('school') }}">
+                <input name="category" placeholder="{{ t('category') }}">
+                <input name="subject" placeholder="{{ t('subject') }}">
+                <input name="experience" type="number" placeholder="{{ t('experience') }}" value="0">
+                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" name="is_admin">
+                    {{ t('admin_role') }}
+                </label>
+                <button type="submit">➕ {{ t('create_user') }}</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- PENDING ACHIEVEMENTS -->
+    <div class="card">
+        <h2>{{ t('pending_review') }}</h2>
+        {% if pending_achievements %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Тип</th>
+                    <th>{{ t('teacher') }}</th>
+                    <th>Ученик</th>
+                    <th>{{ t('title') }}</th>
+                    <th>Категория</th>
+                    <th>Уровень</th>
+                    <th>Место</th>
+                    <th>Баллы</th>
+                    <th>{{ t('actions') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ach in pending_achievements %}
+                <tr>
+                    <td>
+                        {% if ach.achievement_type == 'student' %}👨‍🎓
+                        {% elif ach.achievement_type == 'teacher' %}👨‍🏫
+                        {% elif ach.achievement_type == 'social' %}🤝
+                        {% else %}📖{% endif %}
+                    </td>
+                    <td>{{ ach.user.full_name or ach.user.username }}</td>
+                    <td>{{ ach.student_name or '—' }}</td>
+                    <td>{{ ach.title }}</td>
+                    {{ t('category_' + (ach.category or 'other')) }}
+                    {{ t('level_' + (ach.level or 'school')) }}
+                    {{ t('place_' + (ach.place or 'certificate')) }}
+                    <td><strong style="color: #7030A0;">{{ ach.points }}</strong></td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <form method="post" action="/achievement/{{ ach.id }}/approve" style="display: inline;">
+                                <button type="submit" style="background: #27ae60; padding: 0.4rem 0.8rem; font-size: 0.85rem;">✅</button>
+                            </form>
+                            <form method="post" action="/achievement/{{ ach.id }}/reject" style="display: inline;">
+                                <button type="submit" style="background: #e74c3c; padding: 0.4rem 0.8rem; font-size: 0.85rem;">❌</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="text-align: center; color: #999; padding: 2rem;">Нет заявок ✅</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- TAB: REPORTS -->
+<div id="reports" class="tab-content" style="display: none;">
+    <div class="card">
+        <h2>{{ t('top_teachers') }}</h2>
+        {% set teacher_points = {} %}
+        {% for u in all_users if not u.is_admin %}
+            {% set points = u.achievements|selectattr('status', 'equalto', 'approved')|map(attribute='points')|sum %}
+            {% if points > 0 %}
+                {% set _ = teacher_points.update({u.id: {'user': u, 'points': points}}) %}
+            {% endif %}
+        {% endfor %}
+        {% set sorted_teachers = teacher_points.values()|sort(attribute='points', reverse=True) %}
         
-        with open(file_path, "wb") as f:
-            f.write(content)
+        {% if sorted_teachers %}
+        <table>
+            <thead>
+                <tr>
+                    <th>{{ t('rank') }}</th>
+                    <th>{{ t('teacher') }}</th>
+                    <th>{{ t('school') }}</th>
+                    <th>{{ t('subject') }}</th>
+                    <th>{{ t('points') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in sorted_teachers[:10] %}
+                <tr>
+                    <td>
+                        {% if loop.index == 1 %}🥇
+                        {% elif loop.index == 2 %}🥈
+                        {% elif loop.index == 3 %}🥉
+                        {% else %}{{ loop.index }}
+                        {% endif %}
+                    </td>
+                    <td>{{ item.user.full_name or item.user.username }}</td>
+                    <td>{{ item.user.school or '—' }}</td>
+                    <td>{{ item.user.subject or '—' }}</td>
+                    <td style="font-weight: 700; color: #7030A0;">{{ item.points }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="text-align: center; color: #999; padding: 2rem;">Нет данных 📊</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Переключение главных вкладок
+function switchMainTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
     
-    new_achievement = Achievement(
-        user_id=user.id,
-        achievement_type=achievement_type,  # ✅ СОХРАНЯЕМ ТИП
-        student_name=student_name,  # ✅ СОХРАНЯЕМ ФИО УЧЕНИКА
-        title=title,
-        description=description,
-        category=category,
-        level=level,
-        place=place,  # ✅ СОХРАНЯЕМ МЕСТО
-        file_path=file_path,
-        points=calculated_points,  # ✅ АВТОМАТИЧЕСКИЙ РАСЧЁТ
-        status="pending"
-    )
-    db.add(new_achievement)
-    db.commit()
-    return RedirectResponse(url="/dashboard?success=achievement_added", status_code=303)
+    event.target.classList.add('active');
+    document.getElementById(tab).style.display = 'block';
+}
 
-
-@app.post("/achievement/{achievement_id}/approve")
-def approve_achievement(achievement_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not user or not user.is_admin:
-        raise HTTPException(status_code=403)
+// Переключение типов достижений
+function switchAchievementType(type) {
+    document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.achievement-form').forEach(f => f.style.display = 'none');
     
-    achievement = db.query(Achievement).filter(Achievement.id == achievement_id).first()
-    if achievement:
-        achievement.status = "approved"
-        db.commit()
-    return RedirectResponse(url="/dashboard", status_code=303)
+    event.target.classList.add('active');
+    document.getElementById('form-' + type).style.display = 'block';
+}
+</script>
 
+{% endblock %}
 
-@app.post("/achievement/{achievement_id}/reject")
-def reject_achievement(achievement_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not user or not user.is_admin:
-        raise HTTPException(status_code=403)
-    
-    achievement = db.query(Achievement).filter(Achievement.id == achievement_id).first()
-    if achievement:
-        achievement.status = "rejected"
-        db.commit()
-    return RedirectResponse(url="/dashboard", status_code=303)
-
-
-@app.post("/achievement/{achievement_id}/delete")
-def delete_achievement(achievement_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not user:
-        raise HTTPException(status_code=403)
-    
-    achievement = db.query(Achievement).filter(Achievement.id == achievement_id).first()
-    if achievement and (achievement.user_id == user.id or user.is_admin):
-        db.delete(achievement)
-        db.commit()
-    return RedirectResponse(url="/dashboard", status_code=303)
-
-
-@app.post("/create-user")
-def create_user(
-    username: str = Form(...),
-    password: str = Form(...),
-    full_name: str = Form(...),
-    school: str = Form(""),
-    is_admin: bool = Form(False),
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    if not user or not user.is_admin:
-        raise HTTPException(status_code=403)
-    
-    if db.query(User).filter(User.username == username).first():
-        return RedirectResponse(url="/dashboard?error=username_exists", status_code=303)
-    
-    hashed_pw = hash_password(password)
-    new_user = User(
-        username=username,
-        password_hash=hashed_pw,
-        full_name=full_name,
-        school=school,
-        is_admin=is_admin
-    )
-    db.add(new_user)
-    db.commit()
-    return RedirectResponse(url="/dashboard?success=user_created", status_code=303)
