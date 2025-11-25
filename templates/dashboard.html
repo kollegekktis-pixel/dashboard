@@ -412,7 +412,7 @@
                                 {{ t('level_' + ach.level) }}
                             </span>
                             <span style="background: #fff3cd; color: #856404; padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">
-                                {{ t('place_' + ach.place) }}
+                                {{ t('place_' + (ach.place or 'certificate')) }}
                             </span>
                             <span style="background: #7030A0; color: white; padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">
                                 ⭐ {{ ach.points }} баллов
@@ -594,3 +594,4 @@ function switchAchievementType(type) {
 </script>
 
 {% endblock %}
+
