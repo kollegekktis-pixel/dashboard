@@ -38,6 +38,12 @@ class User(Base):
     full_name = Column(String)
     is_admin = Column(Boolean, default=False)
     school = Column(String)
+    
+    # Добавьте эти поля:
+    subject = Column(String)  # Предмет
+    category = Column(String)  # Категория учителя
+    experience = Column(Integer, default=0)  # Стаж работы
+    
     achievements = relationship("Achievement", back_populates="user")
 
     def check_password(self, password: str) -> bool:
@@ -49,11 +55,17 @@ class Achievement(Base):
     __tablename__ = "achievements"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
+    
+    # Добавьте эти новые поля:
+    achievement_type = Column(String, default="student")  # student, teacher, social, educational
+    student_name = Column(String)  # ФИО ученика (для достижений ученика)
+    place = Column(String)  # 1, 2, 3, certificate
+    
     title = Column(String, nullable=False)
     description = Column(String)
     category = Column(String)
-    level = Column(String)  # Уровень: школьный, городской и т.д.
-    file_path = Column(String)  # Путь к загруженному файлу
+    level = Column(String)
+    file_path = Column(String)
     points = Column(Float, default=0.0)
     status = Column(String, default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -684,3 +696,4 @@ def create_user(
     db.add(new_user)
     db.commit()
     return RedirectResponse(url="/dashboard?success=user_created", status_code=303)
+
