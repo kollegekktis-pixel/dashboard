@@ -158,7 +158,7 @@ TRANSLATIONS = {
         "school": "Школа",
         "subject": "Предмет",
         "teacher_category": "Категория",
-        "experience": "Стаж",
+        "experience": "Стаж в данной организации",
         
         # Достижения учеников
         "student_name": "ФИО ученика",
@@ -317,7 +317,7 @@ TRANSLATIONS = {
         "school": "Мектеп",
         "subject": "Пән",
         "teacher_category": "Санат",
-        "experience": "Тәжірибе",
+        "experience": "Осы ұйымдағы еңбек өтілі",
         
         # Оқушы жетістіктері
         "student_name": "Оқушының аты-жөні",
