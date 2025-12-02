@@ -853,6 +853,228 @@ def fix_admin_role(request: Request, db: Session = Depends(get_db)):
         return HTMLResponse(content=html)
 
 
+@app.get("/make-me-super-admin", response_class=HTMLResponse)
+def make_me_super_admin(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """ПРОСТОЙ маршрут: делает ТЕКУЩЕГО пользователя super_admin"""
+    if not user:
+        return RedirectResponse(url="/login")
+    
+    try:
+        # Сохранить старую роль
+        old_role = getattr(user, 'role', 'unknown')
+        
+        # Установить новую роль
+        user.role = 'super_admin'
+        db.commit()
+        db.refresh(user)
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>✅ Роль изменена!</title>
+            <style>
+                body {{
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0;
+                    padding: 20px;
+                }}
+                .container {{
+                    background: white;
+                    padding: 40px;
+                    border-radius: 20px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    max-width: 600px;
+                    width: 100%;
+                }}
+                h1 {{
+                    color: #7030A0;
+                    font-size: 2.5rem;
+                    margin-bottom: 20px;
+                    text-align: center;
+                }}
+                .success-icon {{
+                    text-align: center;
+                    font-size: 5rem;
+                    margin: 20px 0;
+                }}
+                .info-box {{
+                    background: #f0f7ff;
+                    border-left: 5px solid #2196F3;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border-radius: 8px;
+                }}
+                .info-box strong {{
+                    color: #1976D2;
+                }}
+                .role-badge {{
+                    display: inline-block;
+                    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+                    color: #333;
+                    padding: 10px 20px;
+                    border-radius: 25px;
+                    font-weight: bold;
+                    font-size: 1.2rem;
+                    margin: 10px 0;
+                }}
+                .steps {{
+                    background: #fff3cd;
+                    border-left: 5px solid #ffc107;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border-radius: 8px;
+                }}
+                .steps ol {{
+                    margin: 10px 0;
+                    padding-left: 20px;
+                }}
+                .steps li {{
+                    margin: 10px 0;
+                    font-size: 1.1rem;
+                }}
+                .button-group {{
+                    text-align: center;
+                    margin-top: 30px;
+                }}
+                .btn {{
+                    display: inline-block;
+                    padding: 15px 40px;
+                    margin: 10px;
+                    border-radius: 50px;
+                    text-decoration: none;
+                    font-weight: bold;
+                    font-size: 1.1rem;
+                    transition: all 0.3s ease;
+                }}
+                .btn-primary {{
+                    background: linear-gradient(135deg, #7030A0 0%, #9b59d0 100%);
+                    color: white;
+                    box-shadow: 0 5px 15px rgba(112, 48, 160, 0.3);
+                }}
+                .btn-primary:hover {{
+                    transform: translateY(-3px);
+                    box-shadow: 0 8px 25px rgba(112, 48, 160, 0.5);
+                }}
+                .btn-secondary {{
+                    background: #e0e0e0;
+                    color: #333;
+                }}
+                .btn-secondary:hover {{
+                    background: #d0d0d0;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="success-icon">👑</div>
+                <h1>Роль изменена!</h1>
+                
+                <div class="info-box">
+                    <strong>Пользователь:</strong> {user.username}<br>
+                    <strong>ФИО:</strong> {user.full_name or 'Не указано'}<br>
+                    <strong>ID:</strong> {user.id}<br>
+                    <strong>Старая роль:</strong> {old_role}<br>
+                    <strong>Новая роль:</strong> <span class="role-badge">👑 super_admin</span>
+                </div>
+                
+                <div class="steps">
+                    <strong>🎯 Что дальше:</strong>
+                    <ol>
+                        <li><strong>ВЫЙДИТЕ</strong> из системы (нажмите кнопку ниже)</li>
+                        <li><strong>ВОЙДИТЕ</strong> заново с вашим логином</li>
+                        <li><strong>ПРОВЕРЬТЕ</strong> что в меню появились:
+                            <ul>
+                                <li>👑 Басқару (Админ-панель)</li>
+                                <li>✅ Жетістіктерді тексеру (Модерация)</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+                
+                <div class="button-group">
+                    <a href="/logout" class="btn btn-primary">🚪 Выйти из системы</a>
+                    <a href="/home" class="btn btn-secondary">🏠 На главную</a>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html)
+        
+    except Exception as e:
+        # Если произошла ошибка
+        error_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>❌ Ошибка</title>
+            <style>
+                body {{
+                    font-family: Arial;
+                    padding: 50px;
+                    background: linear-gradient(135deg, #f44336 0%, #e91e63 100%);
+                    color: white;
+                }}
+                .box {{
+                    background: white;
+                    color: #333;
+                    padding: 30px;
+                    border-radius: 15px;
+                    max-width: 600px;
+                    margin: 0 auto;
+                }}
+                h1 {{ color: #f44336; }}
+                pre {{
+                    background: #f5f5f5;
+                    padding: 15px;
+                    border-radius: 8px;
+                    overflow-x: auto;
+                }}
+                a {{
+                    display: inline-block;
+                    background: #7030A0;
+                    color: white;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    text-decoration: none;
+                    margin-top: 20px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="box">
+                <h1>❌ Ошибка</h1>
+                <p><strong>Не удалось изменить роль!</strong></p>
+                <p>Ошибка: {str(e)}</p>
+                <pre>
+Пользователь: {user.username} (ID: {user.id})
+Текущая роль: {getattr(user, 'role', 'НЕТ КОЛОНКИ role!')}
+                </pre>
+                <p>Возможные причины:</p>
+                <ul>
+                    <li>В БД нет колонки 'role' (используется старая версия)</li>
+                    <li>Нужно сделать миграцию БД</li>
+                </ul>
+                <a href="/home">На главную</a>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=error_html)
+
+
 @app.get("/home", response_class=HTMLResponse)
 def home_page(
     request: Request,
