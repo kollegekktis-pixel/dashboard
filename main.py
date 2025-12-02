@@ -245,7 +245,7 @@ TRANSLATIONS = {
         "pending_review": "На проверке",
         "approved": "Утверждено",
         "rejected": "Отказано",
-        "moderate": "Модерация",
+        "moderate": "Рейтинг",
         "admin_role": "Админ",
         "teacher_role": "Учитель",
         
@@ -407,7 +407,7 @@ TRANSLATIONS = {
         "pending_review": "Тексеруде",
         "approved": "Бекітілген",
         "rejected": "Қабылданбаған",
-        "moderate": "Тексеру",
+        "moderate": "Нәтиже",
         "admin_role": "Админ",
         "teacher_role": "Мұғалім",
         
