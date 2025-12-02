@@ -125,8 +125,8 @@ TRANSLATIONS = {
         "profile": "Профиль",
         
         # Главное меню
-        "main_page": "Басты Бет",
-        "jeke_cabinet": "Jeke Cabinet",
+        "main_page": "Главная",
+        "jeke_cabinet": "Личный кабинет",
         "jetistik_alany": "Jetistik Alany",
         "rulebox": "RuleBox",
         "ai_tools": "AI Tools",
