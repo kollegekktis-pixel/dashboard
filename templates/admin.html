@@ -314,7 +314,7 @@
     </div>
 </div>
 
-{% if request.args.get('success') == 'user_created' %}
+{% if request.query_params.get('success') == 'user_created' %}
 <script>
     alert('{{ t("success_user_created") }}');
 </script>
