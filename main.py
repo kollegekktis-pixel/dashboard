@@ -4,10 +4,10 @@ from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse
 import uuid
-
 import bcrypt
 import cloudinary
 import cloudinary.uploader
+from io import BytesIO
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, Cookie, UploadFile
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -1107,7 +1107,7 @@ async def add_achievement(
                 resource_type = "image"  # Картинки как image
             
             upload_result = cloudinary.uploader.upload(
-                content,
+                file_stream,  # ← file-like объект - РАБОТАЕТ!
                 public_id=public_id,
                 resource_type=resource_type
             )
