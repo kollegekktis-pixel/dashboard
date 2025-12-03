@@ -1073,57 +1073,41 @@ async def add_achievement(
             # Сотрудничество со специалистами - фиксированно
             calculated_points = 10
     
+  # ЗАГРУЗКА ФАЙЛА В CLOUDINARY
     file_path = None
-    if file and file.filename:
+    if file:
         content = await file.read()
-        if len(content) > 10 * 1024 * 1024:  # Увеличил лимит до 10 MB
+        
+        # Проверка размера (5MB = 5 * 1024 * 1024 bytes)
+        if len(content) > 5 * 1024 * 1024:
             t = lambda key: get_translation(lang, key)
             return RedirectResponse(url=f"/{achievement_type.replace('_', '-')}?error=file_too_large", status_code=303)
         
-        file_ext = file.filename.split(".")[-1]
+        file_ext = file.filename.split(".")[-1].lower()
         
-        # Попытаться загрузить в Cloudinary
+        # Загрузить в Cloudinary
         try:
             public_id = f"jetistik_hub/{uuid.uuid4()}"
+            
+            # Определить тип файла
+            if file_ext == 'pdf':
+                resource_type = "raw"  # PDF загружается как raw
+            else:
+                resource_type = "image"  # Картинки как image
             
             upload_result = cloudinary.uploader.upload(
                 content,
                 public_id=public_id,
-                resource_type="auto"
+                resource_type=resource_type
             )
             
             file_path = upload_result['secure_url']
-            print(f"✅ File uploaded to Cloudinary: {file_path}")
+            print(f"✅ File uploaded to Cloudinary: {file_path} (type: {resource_type})")
             
         except Exception as e:
-            print(f"⚠️ Cloudinary upload error: {e}")
-            # Fallback: сохранить локально
-            unique_filename = f"{uuid.uuid4()}.{file_ext}"
-            local_path = os.path.join(UPLOAD_DIR, unique_filename)
-            
-            with open(local_path, "wb") as f:
-                f.write(content)
-            
-            file_path = f"/uploads/{unique_filename}"
-            print(f"📁 File saved locally (fallback): {file_path}")
-    
-    new_achievement = Achievement(
-        user_id=user.id,
-        achievement_type=achievement_type,
-        student_name=student_name,
-        title=title,
-        description=description,
-        category=category,
-        level=level,
-        place=place,
-        file_path=file_path,
-        points=calculated_points,
-        status="pending"
-    )
-    db.add(new_achievement)
-    db.commit()
-    
-    return RedirectResponse(url=f"/{achievement_type.replace('_', '-')}?success=added", status_code=303)
+            print(f"❌ Cloudinary upload error: {e}")
+            t = lambda key: get_translation(lang, key)
+            return RedirectResponse(url=f"/{achievement_type.replace('_', '-')}?error=upload_failed", status_code=303)
 
 
 @app.post("/achievement/{achievement_id}/approve")
