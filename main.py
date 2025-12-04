@@ -1079,7 +1079,7 @@ async def add_achievement(
             t = lambda key: get_translation(lang, key)
             return RedirectResponse(url=f"/{achievement_type.replace('_', '-')}?error=file_too_large", status_code=303)
         
-        file_ext = file.filename.split(".")[-1]
+        file_ext = file.filename.split(".")[-1].lower()  # ← ИСПРАВЛЕН ОТСТУП!
         
         # Загрузить в Cloudinary
         try:
@@ -1091,7 +1091,9 @@ async def add_achievement(
                 resource_type = "raw"  # PDF загружается как raw
             else:
                 resource_type = "image"  # Картинки как image
-            file_stream = BytesIO(content)
+            
+            file_stream = BytesIO(content)  # ← Создать file-like объект
+            
             upload_result = cloudinary.uploader.upload(
                 file_stream,
                 public_id=public_id,
