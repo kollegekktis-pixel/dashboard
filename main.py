@@ -177,6 +177,12 @@ TRANSLATIONS = {
         "school": "Школа",
         "subject": "Предмет",
         "teacher_category": "Категория",
+        "select_category": "Выберите категорию",
+        "category_without": "Без категории",
+        "category_second": "Педагог-модератор",
+        "category_first": "Педагог-эксперт",
+        "category_researcher": "Педагог-исследователь",
+        "category_master": "Педагог-мастер",
         "experience": "Стаж в данной организации",
         
         # Достижения учеников
@@ -343,7 +349,13 @@ TRANSLATIONS = {
         "approved_achievements": "Расталған",
         "school": "Мектеп",
         "subject": "Пән",
-        "teacher_category": "Санат",
+        "teacher_category": "Педагог санатты",
+        "select_category": "Санатты таңдаңыз",
+        "category_without": "Санатсыз",
+        "category_second": "Педагог-модератор",
+        "category_first": "Педагог-эксперт",
+        "category_researcher": "Педагог-зерттеуші",
+        "category_master": "Педагог-шебер",
         "experience": "Осы ұйымдағы еңбек өтілі",
         
         # Оқушы жетістіктері
